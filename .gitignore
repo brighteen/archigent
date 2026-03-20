@@ -23,5 +23,10 @@ temp/
 .DS_Store
 Thumbs.db
 
+# Additional Security
+server_debug.log
+*.ifc
+.tempmediaStorage/
+
 # Example (Planned for deletion)
 example/
