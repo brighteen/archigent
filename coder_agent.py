@@ -17,7 +17,8 @@ logger = logging.getLogger(__name__)
 
 # RAG Knowledge Base 로드 (BIM_LLM_code_agent 기반)
 def _load_code_kb() -> str:
-    kb_path = Path("c:/Users/brigh/Documents/GitHub/archigent/BIM_LLM_code_agent/code_sample")
+    # 프로젝트 내 prompts/code_samples 디렉토리에서 지식 베이스 로드
+    kb_path = Path(__file__).parent / "prompts" / "code_samples"
     kb_text = []
     if kb_path.exists():
         for f in kb_path.glob("*.txt"):

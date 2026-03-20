@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArchiGent | Integrated IFC Agent</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 사이드바 / 제어판 -->
+        <aside class="glass-panel" id="control-panel">
+            <header>
+                <h1>ArchiGent</h1>
+                <p>Advanced BIM Agentic Workflow</p>
+            </header>
+
+            <section class="file-selection">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <label for="file-select" style="margin-bottom: 0;">IFC 파일 선택</label>
+                    <button id="refresh-files-btn" style="background: none; border: none; color: var(--accent-color); cursor: pointer; font-size: 11px;">🔄 새로고침</button>
+                </div>
+                <select id="file-select">
+                    <option value="">파일을 불러오는 중...</option>
+                </select>
+            </section>
+
+            <section class="request-input">
+                <label for="user-request">수정 요청사항</label>
+                <textarea id="user-request" placeholder="예: 모든 벽의 이름을 'MainWall'로 변경해줘"></textarea>
+                <button id="run-btn" class="primary-btn">엔진 가동</button>
+            </section>
+
+            <section class="bim-tools">
+                <label>BIM 통합 도구</label>
+                <div class="tool-group">
+                    <button id="measure-btn" title="거리 측정">📏</button>
+                    <button id="clip-btn" title="정밀 단면">✂️</button>
+                    <button id="tree-btn" title="계층 구조">🌳</button>
+                    <button id="props-btn" title="속성 정보">ℹ️</button>
+                    <button id="reset-cam-btn" title="뷰 초기화">📷</button>
+                </div>
+            </section>
+
+            <section class="agent-status">
+                <h3>실시간 상태</h3>
+                <div id="status-stepper">
+                    <div class="step" data-node="analyzer">Analyzer</div>
+                    <div class="step" data-node="planner">Planner</div>
+                    <div class="step" data-node="selection">Selection</div>
+                    <div class="step" data-node="coder">Coder</div>
+                    <div class="step" data-node="reviewer">Reviewer</div>
+                    <div class="step" data-node="verifier">Verifier</div>
+                </div>
+            </section>
+
+            <div id="selection-options" class="hidden">
+                <p>시안을 선택해 주세요:</p>
+                <div id="options-container"></div>
+            </div>
+
+            <footer id="log-console">
+                <div class="log-title">System Logs</div>
+                <div id="log-output"></div>
+            </footer>
+        </aside>
+
+        <!-- 3D 뷰어 영역 -->
+        <main id="viewers-container">
+            <div id="original-viewer" class="viewer-wrapper">
+                <div class="viewer-label">Original IFC</div>
+                <canvas id="canvas-original" class="viewer-canvas"></canvas>
+            </div>
+            <div id="result-viewer" class="viewer-wrapper">
+                <div class="viewer-label">Result / Alternatives</div>
+                <canvas id="canvas-result" class="viewer-canvas"></canvas>
+            </div>
+        </main>
+
+        <!-- 알림/상태 오버레이 -->
+        <div id="overlay" class="hidden">
+            <div class="spinner"></div>
+            <p id="overlay-msg">처리 중...</p>
+        </div>
+    </div>
+
+    <!-- ArchiGent Dashboard Script -->
+    <!-- ESM 기반 최신 엔진 구성 -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "https://esm.sh/three@0.160.0",
+        "three/addons/": "https://esm.sh/three@0.160.0/examples/jsm/",
+        "web-ifc": "https://cdn.jsdelivr.net/npm/web-ifc@0.0.76/+esm"
+      }
+    }
+    </script>
+    <script type="module" src="/static/app.js?v=3"></script>
+</body>
+</html>

@@ -1,0 +1,37 @@
+### Query Example 1: 모든 벽(IfcWall) 객체 조회 및 속성 출력
+import ifcopenshell
+import os
+
+model = ifcopenshell.open(os.environ["IFC_INPUT_PATH"])
+walls = model.by_type("IfcWall")
+
+print(f"Total Walls: {len(walls)}")
+for wall in walls:
+    print(f"Wall Name: {wall.Name}, GlobalId: {wall.GlobalId}")
+
+### Query Example 2: 특정 GlobalId를 가진 객체 조회
+import ifcopenshell
+import os
+
+model = ifcopenshell.open(os.environ["IFC_INPUT_PATH"])
+target_id = "1A2B3C4D..." # 실제 GlobalId로 대체
+element = model.by_guid(target_id)
+
+if element:
+    print(f"Found element: {element.is_a()}, Name: {element.Name}")
+else:
+    print("Element not found")
+
+### Query Example 3: 속성 세트(PropertySet) 값 조회
+import ifcopenshell
+import ifcopenshell.util.element
+
+model = ifcopenshell.open(os.environ["IFC_INPUT_PATH"])
+wall = model.by_type("IfcWall")[0] # 첫 번째 벽 선택
+
+# util.element.get_psets()를 사용하여 모든 속성 세트 가져오기
+psets = ifcopenshell.util.element.get_psets(wall)
+for pset_name, properties in psets.items():
+    print(f"Pset: {pset_name}")
+    for prop_name, value in properties.items():
+        print(f"  {prop_name}: {value}")

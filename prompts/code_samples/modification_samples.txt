@@ -1,0 +1,42 @@
+### Modification Example 1: 객체 이름(Name) 수정
+import ifcopenshell
+import os
+
+model = ifcopenshell.open(os.environ["IFC_INPUT_PATH"])
+wall = model.by_type("IfcWall")[0] # 예시로 첫 번째 벽 선택
+
+wall.Name = "Modifed Wall Name"
+model.write(os.environ["IFC_OUTPUT_PATH"])
+
+### Modification Example 2: 속성 세트(PropertySet) 값 추가/수정
+import ifcopenshell
+import ifcopenshell.util.element
+
+model = ifcopenshell.open(os.environ["IFC_INPUT_PATH"])
+element = model.by_type("IfcWall")[0]
+
+# Pset_WallCommon 속성 세트의 Reference 값을 변경 또는 추가하기
+# ifcopenshell.api.run("pset.edit_pset", ...)를 사용하는 것이 권장됨
+ifcopenshell.api.run("pset.edit_pset", model,
+    element=element,
+    name="Pset_WallCommon",
+    properties={"Reference": "NEW_REF_VALUE", "IsExternal": True}
+)
+
+model.write(os.environ["IFC_OUTPUT_PATH"])
+
+### Modification Example 3: 모든 창문(IfcWindow)의 높이 속성 일괄 변경
+import ifcopenshell
+
+model = ifcopenshell.open(os.environ["IFC_INPUT_PATH"])
+windows = model.by_type("IfcWindow")
+
+for window in windows:
+    # 윈도우의 높이를 2100mm로 설정하는 예시
+    ifcopenshell.api.run("pset.edit_pset", model,
+        element=window,
+        name="Pset_WindowCommon",
+        properties={"Height": 2100.0}
+    )
+
+model.write(os.environ["IFC_OUTPUT_PATH"])
