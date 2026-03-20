@@ -1,0 +1,27 @@
+# Environment
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Project Data & Output
+raw/
+modified/
+backups/
+temp/
+*_archi_script.py
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Example (Planned for deletion)
+example/
