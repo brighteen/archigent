@@ -3,6 +3,7 @@
 **ArchiGent**는 복잡한 BIM(Building Information Modeling) 데이터 표준인 **IFC(Industry Foundation Classes)** 파일을 자연어 지시만으로 분석, 검색, 수정할 수 있도록 설계된 **AI 에이전틱 워크플로우(Agentic Workflow)** 시스템입니다.
 
 건축 도메인의 전문 지식과 최신 LLM의 추론 능력을 결합하여, 코딩 지식 없이도 건축 모델을 자유롭게 제어할 수 있는 지능형 인터페이스를 제공합니다.
+![MVP](archigent_img.png)
 
 ---
 
