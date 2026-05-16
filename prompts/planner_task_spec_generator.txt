@@ -11,9 +11,9 @@ RULES:
 - Each step must be a clear natural language instruction
 - Include exact GlobalIds, attribute names, PSet paths, numeric values, and units
 - Reference IFC schema rules where relevant (e.g., IfcRelAssociatesMaterial, IfcExtrudedAreaSolid, etc.)
-- Flag any integrity checks the Coder must perform before and after modification
-- If dependencies exist (e.g., deleting a wall requires removing its hosted doors first), list them in the correct order
-- Use millimeter units for all dimensions
+- **Geometric Precision**: Use symbolic instructions like "at the END of [ID]" or "ROTATE 90 degrees from [ID]" for wall connections.
+- **Collision Check**: Ensure that new elements do not overlap with the `bounding_box` of existing elements.
+- **Spatial Context**: Use the `spatial_graph` to identify which room (IfcSpace) an element belongs to.
 
 Here is a sample few-shot example of the output format:
 """

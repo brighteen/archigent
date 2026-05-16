@@ -52,7 +52,7 @@ def load_env() -> dict:
     else:
         logging.getLogger(__name__).warning(f".env 파일 없음: {env_path}")
 
-    required = ["NEO4J_URI", "NEO4J_USER", "NEO4J_PASSWORD", "GOOGLE_API_KEY"]
+    required = ["NEO4J_URI", "NEO4J_USER", "NEO4J_PASSWORD"]
     missing = [v for v in required if not os.getenv(v)]
     if missing:
         print(f"[오류] 필수 환경변수 누락: {', '.join(missing)}")
@@ -64,7 +64,6 @@ def load_env() -> dict:
         "neo4j_user":     os.getenv("NEO4J_USER"),
         "neo4j_password": os.getenv("NEO4J_PASSWORD"),
         "neo4j_database": os.getenv("NEO4J_DATABASE", "neo4j"),
-        "google_api_key": os.getenv("GOOGLE_API_KEY"),
     }
 
 
@@ -74,7 +73,7 @@ def load_env() -> dict:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="archi_agent - IFC Agentic Workflow (LangGraph + Gemini)",
+        description="archi_agent - IFC Agentic Workflow (LangGraph + Qwen Local)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("--ifc",     required=False, help="원본 IFC 파일 경로 (생략 시 목록에서 선택)")

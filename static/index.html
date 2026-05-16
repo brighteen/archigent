@@ -28,12 +28,6 @@
                 </select>
             </section>
 
-            <section class="request-input">
-                <label for="user-request">수정 요청사항</label>
-                <textarea id="user-request" placeholder="예: 모든 벽의 이름을 'MainWall'로 변경해줘"></textarea>
-                <button id="run-btn" class="primary-btn">엔진 가동</button>
-            </section>
-
             <section class="bim-tools">
                 <label>BIM 통합 도구</label>
                 <div class="tool-group">
@@ -45,27 +39,52 @@
                 </div>
             </section>
 
-            <section class="agent-status">
-                <h3>실시간 상태</h3>
-                <div id="status-stepper">
+            <section class="system-controls">
+                <button id="toggle-audit-btn" class="secondary-btn">Compliance Audit Trail</button>
+                <button id="toggle-logs-btn" class="secondary-btn">System Logs</button>
+            </section>
+
+            <section class="chat-interface" id="chat-interface">
+                <div id="chat-history">
+                    <div class="chat-msg assistant">
+                        <div class="msg-content">안녕하세요! ArchiGent입니다.<br>원하는 BIM 모델 변경 사항을 말씀해주세요.</div>
+                    </div>
+                </div>
+
+                <div id="status-stepper" class="hidden">
                     <div class="step" data-node="analyzer">Analyzer</div>
                     <div class="step" data-node="planner">Planner</div>
-                    <div class="step" data-node="selection">Selection</div>
                     <div class="step" data-node="coder">Coder</div>
                     <div class="step" data-node="reviewer">Reviewer</div>
                     <div class="step" data-node="verifier">Verifier</div>
                 </div>
+
+                <div class="chat-input-wrapper">
+                    <textarea id="user-request" placeholder="IFC 수정 요청을 입력하세요..." rows="1"></textarea>
+                    <button id="run-btn" class="send-btn" title="전송">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                </div>
             </section>
 
-            <div id="selection-options" class="hidden">
-                <p>시안을 선택해 주세요:</p>
-                <div id="options-container"></div>
+            <!-- Drawers (Hidden by default) -->
+            <div id="audit-drawer" class="drawer hidden">
+                <div class="drawer-header">
+                    <h3>Compliance Audit Trail</h3>
+                    <button class="close-drawer-btn" data-target="audit-drawer">✕</button>
+                </div>
+                <div id="audit-log-container">
+                    <div class="audit-placeholder">대기 중...</div>
+                </div>
             </div>
 
-            <footer id="log-console">
-                <div class="log-title">System Logs</div>
+            <div id="logs-drawer" class="drawer hidden">
+                <div class="drawer-header">
+                    <h3>System Logs</h3>
+                    <button class="close-drawer-btn" data-target="logs-drawer">✕</button>
+                </div>
                 <div id="log-output"></div>
-            </footer>
+            </div>
         </aside>
 
         <!-- 3D 뷰어 영역 -->
@@ -76,6 +95,9 @@
             </div>
             <div id="result-viewer" class="viewer-wrapper">
                 <div class="viewer-label">Result / Alternatives</div>
+                <div class="viewer-controls">
+                    <button id="diff-toggle" class="toggle-btn" title="원본과 비교">DIFF</button>
+                </div>
                 <canvas id="canvas-result" class="viewer-canvas"></canvas>
             </div>
         </main>
@@ -98,6 +120,6 @@
       }
     }
     </script>
-    <script type="module" src="/static/app.js?v=3"></script>
+    <script type="module" src="/static/app.js?v=4"></script>
 </body>
 </html>

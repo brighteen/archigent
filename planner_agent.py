@@ -20,25 +20,18 @@ Agentic Workflow 파이프라인 3단계: Planner(기획자) 에이전트
 import json
 import os
 import re
+import logging
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 from dotenv import load_dotenv
 
-# --- API 클라이언트 (지원 백엔드: claude, gpt, gemini, mistral) ---
-try:
-    import anthropic
-except ImportError:
-    anthropic = None
+logger = logging.getLogger(__name__)
 
+# --- API 클라이언트 (지원 백엔드: openai, local_vllm) ---
 try:
     from openai import OpenAI
 except ImportError:
     OpenAI = None
-
-try:
-    from mistralai import Mistral
-except ImportError:
-    Mistral = None
 
 
 # ── 경로 설정 ────────────────────────────────────────────────────────────────
@@ -50,11 +43,18 @@ TASK_SPEC_GENERATOR_PROMPT_PATH = PROMPTS_DIR / "planner_task_spec_generator.txt
 
 load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 
-# ── API 키 설정 (환경 변수 우선, 없으면 아래 직접 입력) ─────────────────────
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY", "")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY", "")
+# ── API 키 설정 (환경 변수에서 로드) ─────────────────────
+# OPENAI_API_KEY는 현재 vLLM 사용 시 'empty'로 설정됨
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "empty")
+
+AVAILABLE_ACTIONS_DESC = """
+- create_element(ifc_class, length, height, thickness, name, dx_mm, dy_mm, dz_mm, reference_element_global_id)
+  - ifc_class: 'IfcWall', 'IfcWindow', 'IfcDoor', 'IfcSlab'
+  - Note: Use `geometry_info` from the Analyzer context to calculate precise `dx_mm` and `dy_mm` relative to the reference element. For connecting walls, the start of the new wall should match the `end_pt` of the previous one.
+- modify_wall_properties(target_global_id, thickness, height)
+- translate_element(target_global_id, dx_mm, dy_mm, dz_mm)
+- delete_element(target_global_id)
+"""
 
 
 # ── 내부 유틸리티 ────────────────────────────────────────────────────────────
@@ -76,7 +76,7 @@ def _call_llm(prompt: str, model: str) -> str:
 
     Args:
         prompt: 완성된 프롬프트 문자열
-        model: 백엔드 선택 ("claude" | "gpt" | "gemini" | "mistral")
+        model: 백엔드 선택 ("gpt" | "local" | "qwen")
 
     Returns:
         LLM 응답 문자열
@@ -93,30 +93,24 @@ def _call_llm(prompt: str, model: str) -> str:
         )
         return response.content[0].text
 
-    if "gpt" in model:
+    if "gpt" in model or "local" in model or "qwen" in model:
         if OpenAI is None:
             raise ImportError("openai 패키지가 설치되어 있지 않습니다: pip install openai")
-        client = OpenAI(api_key=OPENAI_API_KEY)
+        
+        # .env에서 설정을 가져옴
+        base_url = os.getenv("OPENAI_BASE_URL")
+        api_key = os.getenv("OPENAI_API_KEY", "empty")
+        model_name = os.getenv("LLM_MODEL_NAME", "gpt-4-turbo")
+        
+        client = OpenAI(api_key=api_key, base_url=base_url)
         response = client.chat.completions.create(
-            model="gpt-4.1",
+            model=model_name,
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
+            max_tokens=2048,
         )
         return response.choices[0].message.content
 
-    if "gemini" in model:
-        try:
-            from google import genai
-            from google.genai.types import GenerateContentConfig
-        except ImportError:
-            raise ImportError("google-genai 패키지가 설치되어 있지 않습니다: pip install google-genai")
-        client = genai.Client(api_key=GEMINI_API_KEY)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=GenerateContentConfig(temperature=0.0),
-        )
-        return response.text
 
     if "mistral" in model:
         if Mistral is None:
@@ -131,7 +125,7 @@ def _call_llm(prompt: str, model: str) -> str:
 
     raise ValueError(
         f"지원하지 않는 모델입니다: '{model}'. "
-        f"'claude', 'gpt', 'gemini', 또는 'mistral' 중 하나를 선택하세요."
+        f"'gpt', 'local', 또는 'qwen' 중 하나를 선택하세요."
     )
 
 
@@ -168,7 +162,7 @@ def _validate_task_spec(task_spec: str) -> None:
 def generate_task_specification(
     analyzer_context: dict,
     user_request: str,
-    model: str = "claude",
+    model: str = "qwen", # 기본을 qwen(local)으로 변경
     available_api_list: Optional[list] = None,
 ) -> dict:
     """
@@ -192,7 +186,7 @@ def generate_task_specification(
         spec_prompt_template
         .replace("<<intent_document>>", intent_document_raw)
         .replace("<<analyzer_context>>", analyzer_context_str)
-        .replace("<<available_api_list>>", str(available_api_list or "ifcopenshell standard API"))
+        .replace("<<available_api_list>>", AVAILABLE_ACTIONS_DESC)
     )
 
     task_spec = _call_llm(spec_prompt, model)
@@ -211,7 +205,7 @@ def generate_task_specification_multi(
     user_request: str,
     style_profile_summary: str = "",
     num_options: int = 3,
-    model: str = "claude",
+    model: str = "qwen", # 기본을 qwen으로 변경
 ) -> List[Dict[str, Any]]:
     """
     여러 개의 설계 시안(Options)을 생성합니다.
@@ -231,16 +225,26 @@ def generate_task_specification_multi(
     # 사용자의 스타일 선호도 및 건축 법규 정보를 프롬프트에 추가
     generator_system_prompt = f"""
     당신은 건축 설계 및 법규 준수 전문가입니다. 
-    다음 정보를 바탕으로 {num_options}가지 최적화 시안을 제안하세요.
+    다음 정보를 바탕으로 최적화된 **단일 설계 시안**을 제안하세요.
     
     [준수 사항]
-    1. 사용자의 스타일 선호도: {style_profile_summary}
-    2. 제공된 '법규 정보'에 명시된 부등식 및 제약 조건을 반드시 만족해야 합니다.
-    3. 최적화 문제 해결: 만약 특정 수치가 부족하다면(예: 채광 면적 < 1/10), 이를 만족하기 위해 필요한 최소한의 수치를 계산하여 작업 명세에 포함하세요.
-    
-    각 시안은 다음 JSON 형식으로 응답하세요:
-    [{{ "id": 1, "title": "시안 제목", "task_spec": "단계별 명세 (계산 근거 포함)...", "features": {{ ... }} }}]
-    """
+    1. 제공된 '법규 정보'에 명시된 부등식 및 제약 조건을 반드시 만족해야 합니다.
+    2. 최적화 문제 해결: 만약 특정 수치가 부족하다면(예: 채광 면적 < 1/10), 이를 만족하기 위해 필요한 최소한의 수치를 계산하여 작업 명세에 포함하세요.
+   [출력 형식 (JSON ONLY)]
+- 반드시 아래 형식의 유효한 JSON 배열(요소 1개)만 출력하세요.
+- 각 시안은 title, description, task_spec 키를 가져야 합니다.
+
+```json
+[
+  {{
+    "title": "시안 제목",
+    "description": "시안 설명",
+    "task_spec": "코더가 수행할 구체적인 작업 지시서"
+  }},
+  ...
+]
+```
+"""
     
     spec_prompt_template = _load_prompt(TASK_SPEC_GENERATOR_PROMPT_PATH)
     spec_prompt = (
@@ -248,7 +252,7 @@ def generate_task_specification_multi(
         spec_prompt_template
         .replace("<<intent_document>>", intent_document_raw)
         .replace("<<analyzer_context>>", analyzer_context_str)
-        .replace("<<available_api_list>>", "ifcopenshell standard API")
+        .replace("<<available_api_list>>", AVAILABLE_ACTIONS_DESC)
     )
 
     print(f"[Planner] {num_options}개의 시안 생성 중...")
@@ -268,7 +272,7 @@ def generate_task_specification_multi(
         응답 형식:
         [{{ "id": 1, "title": "분석 보고서 생성", "task_spec": "보고서 생성 단계별 명세 (조회만 수행)...", "features": {{ "query_mode": 1.0 }} }}]
         """
-        spec_prompt = query_system_prompt + "\n\n" + spec_prompt_template.replace("<<intent_document>>", intent_document_raw).replace("<<analyzer_context>>", analyzer_context_str).replace("<<available_api_list>>", "ifcopenshell standard API")
+        spec_prompt = query_system_prompt + "\n\n" + spec_prompt_template.replace("<<intent_document>>", intent_document_raw).replace("<<analyzer_context>>", analyzer_context_str).replace("<<available_api_list>>", AVAILABLE_ACTIONS_DESC)
     else:
         spec_prompt = (
             generator_system_prompt + "\n\n" +
@@ -281,19 +285,40 @@ def generate_task_specification_multi(
     response_raw = _call_llm(spec_prompt, model)
     
     try:
-        # JSON 파싱 공백 및 백틱 제거
-        clean_json = response_raw.replace("```json", "").replace("```", "").strip()
-        options = json.loads(clean_json)
+        # JSON 파싱 공백 및 백틱 제거 (더 정교한 추출)
+        import re
+        # 7B 모델을 위한 강력한 JSON 추출 (가장 먼저 나오는 '[' 부터 가장 나중에 나오는 ']' 까지)
+        match = re.search(r"(\[.*\])", response_raw, re.DOTALL)
+        if match:
+            clean_json = match.group(1).strip()
+        else:
+            clean_json = response_raw.strip()
+            # ```json ... ``` 패턴 매칭 (fallback)
+            json_pattern = re.compile(r"```json\s*(.*?)\s*```", re.DOTALL)
+            match_m = json_pattern.search(clean_json)
+            if match_m:
+                clean_json = match_m.group(1).strip()
+        
+        try:
+            # 주석(||)이나 불필요한 따옴표 등 수정 시도 (단순 무식 복구)
+            clean_json = clean_json.replace("'", '"') # 7B 모델이 가끔 홑따옴표 사용
+            options = json.loads(clean_json)
+        except json.JSONDecodeError:
+            # 여전히 실패하면 따옴표나 중괄호 닫기 시도 (매우 기초적인 복구)
+            if not clean_json.endswith("]"): clean_json += '"}]'
+            options = json.loads(clean_json)
+
         # Verifier를 위해 intent_json을 각 옵션에 포함하거나 별도 관리
         for opt in options:
             opt["intent_json"] = intent_document_raw
         return options
     except Exception as e:
-        logger.error(f"Failed to parse multi-options: {e}")
+        logger.error(f"Failed to parse multi-options: {e}. Fallback to default.")
+        # fallback 시에는 가급적 안전한(수정이 아닌 조회형) spec을 제공하여 루프 방지
         return [{
             "id": 1,
-            "title": "Default Plan",
-            "task_spec": response_raw,
+            "title": "Default Analysis Plan",
+            "task_spec": f"사용자의 요청('{user_request}')을 분석하고 현재 모델의 벽 정보를 조회합니다.\nStep 1: Get all walls.\nStep 2: Print wall properties.",
             "intent_json": intent_document_raw,
             "features": {"modern_aesthetic": 0.5, "functional_efficiency": 0.5}
         }]

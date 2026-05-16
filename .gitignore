@@ -23,10 +23,38 @@ temp/
 .DS_Store
 Thumbs.db
 
-# Additional Security
-server_debug.log
-*.ifc
-.tempmediaStorage/
-
 # Example (Planned for deletion)
 example/
+
+# 로컬 DB 및 설치 바이너리
+neo4j-standalone/
+*.tar.gz
+db/*.db
+db/*.sqlite
+
+# 로그 및 실행 결과
+*.log
+logs/
+archive/
+proposals/
+llm_startup.log
+web_startup.log
+archigent_llm.log
+archigent_web.log
+mistral_vllm.log
+server_debug.log
+
+# 정적 파일 및 업로드
+static/uploads/
+static/generated/
+
+# (선택 사항) 테스트용 스크립트가 배포에 필요 없다면
+test.py
+test_headless.py
+
+# IDE & OS 추가
+.history/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

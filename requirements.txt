@@ -1,11 +1,13 @@
-ifcopenshell
-neo4j
+langchain-openai
 python-dotenv
 langgraph
 langchain
 langchain-core
-langchain-google-genai
 typing-extensions
+openai
+vllm
+ifcopenshell
+neo4j
 fastapi
 uvicorn
 python-multipart

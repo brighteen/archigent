@@ -29,21 +29,16 @@ class GraphInitializer:
     def initialize(
         self,
         ifc_path: str | Path,
+        task_id: str,
         clear_first: bool = False,
     ) -> dict:
         """
         IFC 파일을 파싱하여 Neo4j에 전부 삽입합니다.
-
-        Args:
-            ifc_path: IFC 파일 경로
-            clear_first: True이면 기존 DB를 모두 삭제한 뒤 삽입
-
-        Returns:
-            실행 결과 요약 딕셔너리
         """
         ifc_path = Path(ifc_path)
         result = {
             "ifc_path": str(ifc_path),
+            "taskId": task_id,
             "success": False,
             "elements_written": 0,
             "relationships_written": 0,
@@ -51,54 +46,34 @@ class GraphInitializer:
         }
 
         try:
-            # 1. DB 초기화 (선택)
+            # 1. DB 초기화 (해당 task_id 데이터만)
             if clear_first:
-                self.logger.info("기존 DB 데이터 삭제 중…")
-                self.client.clear()
+                self.logger.info(f"기존 DB 데이터 삭제 중 (taskId: {task_id})…")
+                self.client.clear(task_id=task_id)
 
             # 2. IFC 파일 로드
-            self.logger.info(f"IFC 로드 시작: {ifc_path}")
             if not self.loader.load(ifc_path):
                 result["error"] = "IFC 파일 로드 실패"
                 return result
 
             # 3. 파일 메타 노드 생성
             ifc_file = self.loader.ifc_file
-            file_id = self.client.upsert_file_node(
-                ifc_path,
-                schema=ifc_file.schema if ifc_file else "",
-            )
-            if not file_id:
-                result["error"] = "파일 메타 노드 생성 실패"
-                return result
-            self.logger.info(f"파일 노드 생성 완료: {file_id}")
+            file_id = self.client.upsert_file_node(ifc_path, task_id=task_id, schema=ifc_file.schema if ifc_file else "")
 
-            # 4. 요소(IfcProduct) 삽입
+            # 4. 요소 삽입
             elements = self.loader.get_elements()
-            elem_ok = 0
             for elem in elements:
-                if self.client.upsert_element(elem, file_id):
-                    elem_ok += 1
-            self.logger.info(f"요소 삽입 완료: {elem_ok}/{len(elements)}")
-            result["elements_written"] = elem_ok
+                if self.client.upsert_element(elem, task_id, file_id):
+                    result["elements_written"] += 1
 
             # 5. 관계 삽입
             relationships = self.loader.get_relationships()
-            rel_ok = 0
             for rel in relationships:
-                if self.client.upsert_relationship(rel):
-                    rel_ok += 1
-            self.logger.info(f"관계 삽입 완료: {rel_ok}/{len(relationships)}")
-            result["relationships_written"] = rel_ok
+                if self.client.upsert_relationship(rel, task_id):
+                    result["relationships_written"] += 1
 
-            # 6. 통계
-            stats = self.client.get_stats()
-            result["db_stats"] = stats
             result["success"] = True
-            self.logger.info(f"DB 초기화 완료 — {stats}")
-
         except Exception as exc:
             self.logger.error(f"초기화 중 오류 발생: {exc}")
             result["error"] = str(exc)
-
         return result

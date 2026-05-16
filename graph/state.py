@@ -11,6 +11,7 @@ class AgentState(TypedDict, total=False):
     user_request: str         # 사용자 자연어 요청 (예: "모든 벽의 이름을 조회해줘")
     ifc_path: str             # 원본 IFC 파일 경로
     output_ifc_path: str      # 수정된 IFC 저장 경로 (Coder 생성)
+    task_id: str              # 현재 작업의 고유 ID (파일 관리용)
 
     # ── Analyzer ──────────────────────────────────────────────────────
     graph_summary: str        # Neo4j 조회 결과 + LLM 구조 분석 요약
@@ -43,3 +44,9 @@ class AgentState(TypedDict, total=False):
     plan_options: List[Dict[str, Any]] # Planner가 제안한 다중 시안 리스트
     selected_option_index: int      # 사용자가 선택한 시안 인덱스
     preference_profile: Dict[str, Any] # 사용자의 주관적 선호도 가중치 프로필
+    
+    # ── Multi-Design Visual HITL ────────────────────────────────────
+    option_results: List[Dict[str, Any]] # 각 시안의 실행 결과 (IFC 경로, 성공 여부 등)
+    final_refinements: Dict[str, Any]    # 선택 후 추가 수정된 파라미터 (두께, 높이 등)
+    operation_type: str                  # "MODIFY" | "QUERY" | "CREATE"
+    final_chat_response: str             # 최종 대화형 응답 메시지

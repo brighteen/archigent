@@ -1,8 +1,15 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { IfcAPI, IFCSPACE } from 'web-ifc';
+import { IfcAPI } from 'web-ifc';
 
 console.log("🚀 app.js v3 loaded — Pure Three.js Professional BIM Suite");
+
+// Global error handler to catch initialization issues
+window.onerror = function(msg, url, lineNo, columnNo, error) {
+    if (msg.includes("ResizeObserver")) return false;
+    remoteLog(`[JS ERROR] ${msg} at ${lineNo}:${columnNo}`);
+    return false;
+};
 
 // ── 원격 로그 ───────────────────────────────────────────────────────────
 async function remoteLog(msg) {
@@ -113,7 +120,9 @@ class IfcViewer {
             await ifcAPI.Init();
 
             const res = await fetch(`/api/ifc/${folder}/${filename}`);
+            if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
             const buf = await res.arrayBuffer();
+            if (buf.byteLength === 0) throw new Error("Empty IFC file received");
             const data = new Uint8Array(buf);
             const modelID = ifcAPI.OpenModel(data);
 
@@ -288,21 +297,36 @@ class IfcViewer {
     }
 }
 
-// ── 전역 인스턴스 ─────────────────────────────────────────────────────
+// ── Global State ─────────────────────────────────────────────────────
 let originalViewer = null;
 let resultViewer = null;
+let activeTaskId = null;
+let currentOptionIfcs = []; 
+let currentAssistantMsgBody = null;
 
-// ── UI ───────────────────────────────────────────────────────────────
-const fileSelect = document.getElementById('file-select');
-const runBtn = document.getElementById('run-btn');
-const userRequest = document.getElementById('user-request');
-const logOutput = document.getElementById('log-output');
+// DOM Elements (will be initialized in DOMContentLoaded)
+let fileSelect, runBtn, userRequest, logOutput, chatHistory, statusStepper;
+let toggleLogsBtn, toggleAuditBtn, logsDrawer, auditDrawer;
 
 function addLog(msg) {
     const div = document.createElement('div');
     div.textContent = `> ${msg}`;
     logOutput.appendChild(div);
     logOutput.scrollTop = logOutput.scrollHeight;
+}
+
+function appendChatMessage(role, content) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = `chat-msg ${role}`;
+    
+    // Convert newlines to breaks or handle simple markdown
+    const formattedContent = content.replace(/\n/g, '<br>');
+    
+    msgDiv.innerHTML = `<div class="msg-content">${formattedContent}</div>`;
+    chatHistory.appendChild(msgDiv);
+    chatHistory.scrollTop = chatHistory.scrollHeight;
+    
+    return msgDiv.querySelector('.msg-content');
 }
 
 async function loadFiles() {
@@ -320,23 +344,86 @@ async function loadFiles() {
     }
 }
 
-function connectSSE() {
-    const es = new EventSource('/api/events');
+function connectSSE(taskId) {
+    activeTaskId = taskId;
+    const es = new EventSource(`/api/events?task_id=${taskId}`);
     es.onmessage = ({ data }) => {
-        if (data.startsWith("LOG:")) addLog(data.slice(4));
-        else if (data.startsWith("STATUS:")) {
-            document.querySelectorAll('.step').forEach(s => s.classList.toggle('active', s.dataset.node === data.slice(7)));
+        if (data.startsWith("LOG:")) {
+            addLog(data.slice(4));
+        } else if (data.startsWith("STATUS:")) {
+            const node = data.slice(7);
+            document.querySelectorAll('.step').forEach(s => s.classList.toggle('active', s.dataset.node === node));
         } else if (data.startsWith("RESULT:")) {
             const fname = data.slice(7);
             resultViewer.loadIFC("modified", fname);
             addLog(`수정 완료: ${fname}`);
-        } else if (data === "[DONE]") es.close();
-        else if (data.startsWith("ERROR:")) addLog(`오류: ${data.slice(6)}`);
+            
+            // 스마트 하이라이트 효과
+            const canvas = document.getElementById('canvas-result');
+            canvas.classList.add('highlighted');
+            setTimeout(() => canvas.classList.remove('highlighted'), 3000);
+        } else if (data.startsWith("RESPONSE:")) {
+            // Streaming Assistant Response
+            const token = data.slice(9);
+            if (!currentAssistantMsgBody) {
+                currentAssistantMsgBody = appendChatMessage('assistant', '');
+            }
+            if (token) {
+                // simple replace for newline tokens
+                const textChunk = token.replace(/\\n/g, '<br>');
+                currentAssistantMsgBody.innerHTML += textChunk;
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+        } else if (data === "[DONE]") {
+            es.close();
+            statusStepper.classList.add('hidden');
+            currentAssistantMsgBody = null; // Reset for next interaction
+        } else if (data.startsWith("AUDIT:")) {
+            renderAuditItem(data.slice(6));
+        } else if (data.startsWith("ERROR:")) {
+            addLog(`오류: ${data.slice(6)}`);
+            if (!currentAssistantMsgBody) currentAssistantMsgBody = appendChatMessage('assistant', '');
+            currentAssistantMsgBody.innerHTML += `<br><span style="color:#ff3b30">오류 발생: ${data.slice(6)}</span>`;
+        }
     };
     es.onerror = () => es.close();
 }
 
+function renderAuditItem(auditStr) {
+    const container = document.getElementById('audit-log-container');
+    const placeholder = container.querySelector('.audit-placeholder');
+    if (placeholder) placeholder.remove();
+
+    const [status, message] = auditStr.split('|');
+    const div = document.createElement('div');
+    div.className = 'audit-item';
+    
+    let icon = 'ℹ️';
+    let iconClass = 'info';
+    if (status === 'SUCCESS') { icon = '🟢'; iconClass = 'success'; }
+    else if (status === 'ERROR') { icon = '🔴'; iconClass = 'error'; }
+    else if (status === 'WARN') { icon = '🟠'; iconClass = 'warn'; }
+
+    div.innerHTML = `<span class="audit-icon ${iconClass}">${icon}</span><span class="audit-msg">${message}</span>`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+// renderSelectionOptions removed (Single Flow mode)
+
 window.addEventListener('DOMContentLoaded', async () => {
+    // Initialize DOM References
+    fileSelect = document.getElementById('file-select');
+    runBtn = document.getElementById('run-btn');
+    userRequest = document.getElementById('user-request');
+    logOutput = document.getElementById('log-output');
+    chatHistory = document.getElementById('chat-history');
+    statusStepper = document.getElementById('status-stepper');
+    toggleLogsBtn = document.getElementById('toggle-logs-btn');
+    toggleAuditBtn = document.getElementById('toggle-audit-btn');
+    logsDrawer = document.getElementById('logs-drawer');
+    auditDrawer = document.getElementById('audit-drawer');
+
     await loadFiles();
 
     originalViewer = new IfcViewer('original-viewer', 'canvas-original', 'Original');
@@ -353,16 +440,58 @@ window.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('refresh-files-btn').onclick = loadFiles;
 
+    // Drawers Interaction
+    const closeDrawers = () => {
+        logsDrawer.classList.add('hidden');
+        auditDrawer.classList.add('hidden');
+    };
+
+    toggleLogsBtn.addEventListener('click', () => {
+        closeDrawers();
+        logsDrawer.classList.remove('hidden');
+    });
+
+    toggleAuditBtn.addEventListener('click', () => {
+        closeDrawers();
+        auditDrawer.classList.remove('hidden');
+    });
+
+    document.querySelectorAll('.close-drawer-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const target = e.currentTarget.dataset.target;
+            document.getElementById(target).classList.add('hidden');
+        });
+    });
+
+    // Enter Key Submission
+    userRequest.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            runBtn.click();
+        }
+    });
+
     runBtn.addEventListener('click', async () => {
         const filename = fileSelect.value;
         const request = userRequest.value.trim();
         if (!filename || !request) return;
+        
+        appendChatMessage('user', request);
+        userRequest.value = ''; // clear input
+        
+        // Open stepper status
+        statusStepper.classList.remove('hidden');
+        document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+        
         addLog("에이전트 가동 시작...");
         const res = await fetch('/api/generate', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ ifc_filename: filename, user_request: request })
         });
-        if (res.ok) connectSSE();
+        if (res.ok) {
+            const data = await res.json();
+            if (data.task_id) connectSSE(data.task_id);
+        }
     });
 
     // ── BIM 도구 버튼 ──────────────────────────────────────────────
@@ -414,6 +543,23 @@ window.addEventListener('DOMContentLoaded', async () => {
         originalViewer.resetView();
         resultViewer.resetView();
         addLog("📷 뷰 초기화");
+    };
+
+    // ↔ DIFF 토글
+    const diffBtn = document.getElementById('diff-toggle');
+    let diffMode = false;
+    diffBtn.onclick = () => {
+        diffMode = !diffMode;
+        diffBtn.classList.toggle('active', diffMode);
+        
+        const originalDiv = document.getElementById('original-viewer');
+        if (diffMode) {
+            originalDiv.style.display = 'none';
+            addLog("🎨 [수정본 전용 뷰] 변경된 요소를 강조합니다");
+        } else {
+            originalDiv.style.display = 'block';
+            addLog("🎨 [나란히 보기] 비포/애프터를 비교합니다");
+        }
     };
 
     // 캔버스 클릭 이벤트 (측정 도구)

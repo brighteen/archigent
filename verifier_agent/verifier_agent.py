@@ -35,8 +35,11 @@ def verify_modifications(original_ifc_path: str, modified_ifc_path: str, modific
     modified_model = ifcopenshell.open(modified_ifc_path)
 
     for task in modification_plan:
-        gid = task.get("GlobalId")
-        action = task.get("action", "modify")
+        gid = task.get("GlobalId") or task.get("globalId")
+        if not gid:
+            return {"success": False, "reason": "Verification failed: GlobalId is missing in modification plan."}
+            
+        action = task.get("action", "modify").lower()
         try:
             if action == "delete":
                 # The element must not exist in the modified model

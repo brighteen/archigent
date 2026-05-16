@@ -47,6 +47,8 @@ def execute_in_sandbox(
         child_env = os.environ.copy()
         child_env["IFC_INPUT_PATH"] = str(input_ifc_path)
         child_env["IFC_OUTPUT_PATH"] = str(output_ifc_path)
+        # bim_util 등 로컬 모듈을 임포트할 수 있도록 PYTHONPATH에 현재 디렉토리 추가
+        child_env["PYTHONPATH"] = f"{os.getcwd()}:{child_env.get('PYTHONPATH', '')}"
 
         proc = subprocess.run(
             [sys.executable, tmp_file_path],
